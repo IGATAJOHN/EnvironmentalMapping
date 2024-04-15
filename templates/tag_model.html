@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tag Model</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Babylon.js CDN -->
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <!-- Your custom CSS -->
+    <style>
+        /* Custom styles */
+        #modelCanvas {
+            width: 70%; /* Adjust width as needed */
+            height: 100vh;
+            float: left; /* Float the canvas to the left */
+        }
+
+        .sidebar {
+            width: 30%; /* Adjust width as needed */
+            height: 100vh;
+            background-color: #f8f9fa; /* Light gray background color */
+            float: right; /* Float the sidebar to the right */
+            display: block; /* Initially display the sidebar */
+            overflow-y: auto; /* Enable vertical scrolling if needed */
+        }
+
+        .hide-sidebar {
+            display: none; /* Hide the sidebar when toggled */
+        }
+
+        #collapseBtn {
+            width: 100%; /* Full width button */
+            text-align: center; /* Center align the button text */
+            margin-bottom: 10px; /* Add some margin at the bottom */
+        }
+
+        /* Hamburger button styles */
+        .hamburger {
+            width: 40px;
+            height: 40px;
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 999;
+        }
+
+        .hamburger span {
+            display: block;
+            width: 30px;
+            height: 4px;
+            background-color: #333;
+            margin: 6px auto;
+            transition: all 0.3s ease-in-out;
+        }
+
+        .hamburger span:first-child {
+            margin-top: 0;
+        }
+
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.active span:nth-child(1) {
+            transform: translateY(10px) rotate(45deg);
+        }
+
+        .hamburger.active span:nth-child(3) {
+            transform: translateY(-10px) rotate(-45deg);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Canvas for displaying the 3D model -->
+            <canvas id="modelCanvas"></canvas>
+
+            <!-- Sidebar for additional details -->
+            <div class="sidebar">
+                <div class="accordion" id="modelDetailsAccordion">
+                    <div class="card">
+                        <div id="modelDetailsCollapse" class="collapse show" aria-labelledby="modelDetailsHeading" data-parent="#modelDetailsAccordion">
+                            <div class="card-body">
+                                <form id="modelDataForm">
+                                    <div class="form-group">
+                                        <label for="objectName">Object Name:</label>
+                                        <input type="text" class="form-control" id="objectName" name="objectName">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="location">Location:</label>
+                                        <select class="form-control" id="locationType" name="locationType">
+                                            <option value="">Select Location</option>
+                                            {% for location in locations %}
+                                                <option value="{{ location._id }}">{{ location.factory_location }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="sampleType">Type of Sample:</label>
+                                        <select class="form-control" id="sampleType" name="sampleType">
+                                            <option value="">Select Sample Type</option>
+                                            {% for sample in samples %}
+                                                <option value="{{ sample._id }}">{{ sample.sample_name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="presenceFrequency">Presence Frequency:</label>
+                                        <input type="text" class="form-control" id="presenceFrequency" name="presenceFrequency">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="incident">Incident:</label>
+                                        <textarea class="form-control" id="incident" rows="3" name="incident"></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="evidence">Evidence:</label>
+                                        <input type="file" class="form-control-file" id="evidence" name="evidence">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" id="formSubmitButton">Submit</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-delay="3000">
+        <div class="toast-header">
+          <strong class="mr-auto">Form Submitted</strong>
+          <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="toast-body">
+          Your form has been submitted successfully!
+        </div>
+      </div>
+      
+    <script>
+        // Babylon.js code goes here
+        window.addEventListener('DOMContentLoaded', function(){
+            var canvas = document.getElementById('modelCanvas');
+            var engine = new BABYLON.Engine(canvas, true);
+            var scene;
+
+            // Material for highlighting meshes
+            var highlightMaterial;
+
+            // Array to store selected meshes
+            var selectedMesh;
+
+            // Load the custom 3D mesh
+            BABYLON.SceneLoader.Load("", "../static/models/{{ model_filename }}", engine, function(loadedScene) {
+                scene = loadedScene;
+
+                // Create a default camera
+                var camera = new BABYLON.ArcRotateCamera("camera", 0, Math.PI / 2, 10, BABYLON.Vector3.Zero(), scene);
+                camera.attachControl(canvas, true);
+
+                // Create a light
+                var light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+
+                // Material for highlighting meshes
+                highlightMaterial = new BABYLON.StandardMaterial("highlightMaterial", scene);
+                highlightMaterial.emissiveColor = new BABYLON.Color3(1, 0, 0); // Red
+                // Enable picking on canvas click
+// Keep track of the previously selected mesh
+var previousSelectedMesh = null;
+
+// Enable picking on canvas click
+canvas.addEventListener('click', function(event) {
+    // Get the clicked coordinates
+    var pickInfo = scene.pick(scene.pointerX, scene.pointerY);
+
+    // Check if a mesh is picked
+    if (pickInfo.hit) {
+        var pickedMesh = pickInfo.pickedMesh;
+        
+        // Reset material of previously selected mesh
+        if (previousSelectedMesh) {
+            previousSelectedMesh.material = previousSelectedMesh.originalMaterial;
+        }
+
+        // Change the material color of the picked mesh to red
+        pickedMesh.originalMaterial = pickedMesh.material;
+        pickedMesh.material = highlightMaterial;
+        document.getElementById('objectName').value=pickedMesh.metadata.objectName;
+        document.getElementById('locationType').value=pickedMesh.metadata.locationType;
+        document.getElementById('sampleType').value=pickedMesh.metadata.sampleType;
+        document.getElementById('presenceFrequency').value=pickedMesh.metadata.presenceFrequency;
+        document.getElementById('incident').value=pickedMesh.metadata.incident;
+        document.getElementById('evidence').value=pickedMesh.metadata.evidence;
+        // Display metadata in the object name form field
+       // var objectNameInput = document.getElementById('objectName');
+        // if (objectNameInput) {
+        //     objectNameInput.value = pickedMesh.metadata.objectName || '';
+        // }
+
+        // Update the previously selected mesh
+        previousSelectedMesh = pickedMesh;
+    }
+});
+
+// // Function to clear form fields
+// function clearForm() {
+//     document.getElementById('objectName').value = "";
+//     document.getElementById('locationType').value = "";
+//     document.getElementById('sampleType').value = "";
+//     document.getElementById('presenceFrequency').value = "";
+//     document.getElementById('incident').value = "";
+//     document.getElementById('evidence').value = "";
+  
+// }
+//====================================submit buttons=============================================================
+// document.getElementById('submitButton').addEventListener('click', function() {
+//     // Update information of selected mesh based on form fields
+//     if (selectedMesh) {
+//         // Update metadata of selected mesh
+//         selectedMesh.metadata.objectName = document.getElementById('objectName').value;
+//         selectedMesh.metadata.locationType = document.getElementById('locationType').value;
+//         selectedMesh.metadata.sampleType = document.getElementById('sampleType').value;
+//         selectedMesh.metadata.presenceFrequency = document.getElementById('presenceFrequency').value;
+//         selectedMesh.metadata.incident = document.getElementById('incident').value;
+//         selectedMesh.metadata.evidence = document.getElementById('evidence').value;
+//     }
+
+//     // Gather form data
+//     var formData = new FormData();
+//     formData.append('objectName', document.getElementById('objectName').value);
+//     formData.append('locationType', document.getElementById('locationType').value);
+//     formData.append('sampleType', document.getElementById('sampleType').value);
+//     formData.append('presenceFrequency', document.getElementById('presenceFrequency').value);
+//     formData.append('incident', document.getElementById('incident').value);
+//     //formData.append('evidence', document.getElementById('timeOfSample').value);
+    
+
+//     // Append the uploaded image file
+//     var imageFileInput = document.getElementById('evidence');
+//     var imageFile = imageFileInput.files[0];
+//     formData.append('evidence', imageFile);
+
+//     // Submit form data to the server
+//     fetch('/submit_form', {
+//         method: 'POST',
+//         body: formData
+//     })
+//     .then(response => {
+//         if (response.ok) {
+//             console.log('Data submitted successfully');
+//             clearForm(); // Clear the form fields after successful submission
+//             // Handle success
+//         } else {
+//             console.error('Failed to submit data');
+//         }
+//     })
+//     .catch(error => {
+//         console.error('Error submitting data:', error);
+//     });
+// });
+//==================================================================================================================
+                // Render the scene
+                engine.runRenderLoop(function(){
+                    scene.render();
+                });
+            });
+
+        // Form submission using AJAX
+var form = document.getElementById('modelDataForm');
+form.addEventListener('submit', function(event) {
+    event.preventDefault(); // Prevent default form submission
+
+    // Serialize form data
+    var formData = new FormData(form);
+
+    // Send form data asynchronously
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/submit_form');
+    xhr.onload = function() {
+        if (xhr.status === 200) {
+            // Form submitted successfully
+            console.log(xhr.responseText);
+            // Clear form fields
+            form.reset();
+            // Show toast message
+            var toast = document.getElementById('toast');
+            var bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+        } else {
+            // Error handling
+            console.error('Form submission failed');
+        }
+    };
+    xhr.send(formData);
+});
+        });
+    </script>
+</body>
+</html>
