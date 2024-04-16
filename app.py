@@ -139,12 +139,11 @@ def model():
     locations_json = json.dumps(locations_data)
     
     return render_template('model.html', locations_json=locations_json, models=model_data)
-# Your existing endpoint for handling form submission
 @app.route('/submit_form', methods=['POST'])
 def submit_form():
     # Retrieve form data
     object_name = request.form.get('objectName')
-    location = request.form.get('locationType')
+    location = request.form.get('locationType')  # Assuming 'locationType' is the correct name from the HTML
     sample_type = request.form.get('sampleType')
     presence_frequency = request.form.get('presenceFrequency')
     incident = request.form.get('incident')
@@ -152,6 +151,7 @@ def submit_form():
     # Handle file upload (evidence)
     if 'evidence' in request.files:
         evidence_file = request.files['evidence']
+        # Save the uploaded file
         if evidence_file.filename != '':
             evidence_filename = secure_filename(evidence_file.filename)
             evidence_file.save(os.path.join(app.config['UPLOAD_FOLDER'], evidence_filename))
@@ -170,7 +170,7 @@ def submit_form():
         'evidence_filename': evidence_filename
     }
     models_metadata.insert_one(model_data)
-    
+    print('object name',object_name)
     # Return a response indicating success
     return jsonify({'message': 'Form submitted successfully'})
 
