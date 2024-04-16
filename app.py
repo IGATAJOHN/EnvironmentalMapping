@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, request, url_for, flash, session,jsonify,send_file,abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -8,12 +9,18 @@ from pymongo import MongoClient
 import os
 import json
 from bson import ObjectId
+# Load environment variables from .env file
+load_dotenv()
+
+# Access environment variables
+MONGODB_URI = os.getenv('MONGODB_URI')
+SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT'))
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 app.config['SESSION_TIMEOUT'] = 300
 app.config['UPLOAD_FOLDER'] = 'static/asset'
 app.config['MODEL_FOLDER']='static/models'
-client = MongoClient('mongodb://localhost:27017/')
-db = client.mydatabase  # Replace 'mydatabase' with your database name
+client = MongoClient(MONGODB_URI)
+db = client.supportdb  # Replace 'mydatabase' with your database name
 users_collection = db.users  # Replace 'users' with your collection name
 locations_collection = db.locations
 models_collection=db.models
@@ -132,11 +139,12 @@ def model():
     locations_json = json.dumps(locations_data)
     
     return render_template('model.html', locations_json=locations_json, models=model_data)
+# Your existing endpoint for handling form submission
 @app.route('/submit_form', methods=['POST'])
 def submit_form():
     # Retrieve form data
     object_name = request.form.get('objectName')
-    location = request.form.get('locationType')  # Assuming 'locationType' is the correct name from the HTML
+    location = request.form.get('locationType')
     sample_type = request.form.get('sampleType')
     presence_frequency = request.form.get('presenceFrequency')
     incident = request.form.get('incident')
@@ -144,7 +152,6 @@ def submit_form():
     # Handle file upload (evidence)
     if 'evidence' in request.files:
         evidence_file = request.files['evidence']
-        # Save the uploaded file
         if evidence_file.filename != '':
             evidence_filename = secure_filename(evidence_file.filename)
             evidence_file.save(os.path.join(app.config['UPLOAD_FOLDER'], evidence_filename))
@@ -163,7 +170,7 @@ def submit_form():
         'evidence_filename': evidence_filename
     }
     models_metadata.insert_one(model_data)
-    print('object name',object_name)
+    
     # Return a response indicating success
     return jsonify({'message': 'Form submitted successfully'})
 
